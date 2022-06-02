@@ -11,16 +11,18 @@
 
 // const char *ssid = "MOLDTELECOM_F47";
 // const char *password = "3043501914";
+const String ssid = "HUAWEI-aah9";  
+const String password = "4gd19aib"; 
 
 const char *HOSTssid = "GARDEN-AP";
 const char *HOSTpassword = "62636263";
 
-String ssid = "HUAWEI-aah9";  // OK
-String password = "4gd19aib"; // OK
+
 
 int PIN_COUNT = 16;
 int TIME_PER_ZONE = 20;
 bool IS_STOP_WATERING = false;
+bool IS_LOCAL_AP = false;
 bool IS_STARTED_WATERING = false;
 int active_pin = 0;
 int pins[] = {23, 33, 25, 14, 26, 32, 27, 13, 22, 21, 19, 18, 5, 17, 4, 15};
@@ -43,47 +45,7 @@ void WRITE_VARIABLES()
   {
     EEPROM.write(PIN_COUNT, TIMER.substring(0, 2).toInt());
     EEPROM.write(PIN_COUNT + 1, TIMER.substring(3, 5).toInt());
-    Serial.println(EEPROM.read(PIN_COUNT));
-    Serial.println(EEPROM.read(PIN_COUNT + 1));
   }
-  // write wifi username
-  for (int i = PIN_COUNT + 1, j = 0; i < PIN_COUNT + 22; i++, j++)
-  {
-    if (ssid[j])
-    {
-      Serial.println(String(int(ssid[j])) + " " + ssid[j] + " " + char(int(ssid[j])));
-      EEPROM.write(i, int(ssid[j]));
-    }
-    else
-    {
-      for (int q = i; q < PIN_COUNT + 22; q++)
-      {
-        EEPROM.write(q, 0);
-      }
-      break;
-    }
-  }
-  Serial.println();
-
-  // write wifi password
-  for (int i = PIN_COUNT + 21, j = 0; i < PIN_COUNT + 42; i++, j++)
-
-  {
-    if (password[j])
-    {
-      Serial.println(String(int(password[j])) + " " + password[j] + " " + char(int(password[j])));
-      EEPROM.write(i, int(password[j]));
-    }
-    else
-    {
-      for (int q = i; q < PIN_COUNT + 42; q++)
-      {
-        EEPROM.write(q, 0);
-      }
-      break;
-    }
-  }
-
   EEPROM.commit();
 }
 
@@ -94,6 +56,7 @@ void READ_VARIABLES()
   {
     zone_time[i] = EEPROM.read(i);
   }
+
   // read times
   int h = EEPROM.read(PIN_COUNT);
   int m = EEPROM.read(PIN_COUNT + 1);
@@ -102,42 +65,6 @@ void READ_VARIABLES()
   Serial.println(Sh + ":" + Sm);
   TIMER = Sh + ":" + Sm;
 
-  // read wifi ssid
-  String newSsid = "";
-  String newPassword = "";
-  for (int i = PIN_COUNT + 1; i < PIN_COUNT + 22; i++)
-  {
-    const int j = EEPROM.read(i);
-
-    if (j)
-    {
-      newSsid += char(j);
-    }
-    else
-    {
-      break;
-    }
-  }
-
-  // read wifi password
-  for (int i = PIN_COUNT + 21; i < PIN_COUNT + 42; i++)
-  {
-    const int j = EEPROM.read(i);
-
-    if (j)
-    {
-      newPassword += char(j);
-    }
-    else
-    {
-      break;
-    }
-  }
-  ssid = newSsid;
-  password = newPassword;
-
-  Serial.println("SSID1: " + newSsid);
-  Serial.println("Password1: " + newSsid);
 }
 
 void GET_INFO(AsyncWebServerRequest *request)
@@ -148,6 +75,7 @@ void GET_INFO(AsyncWebServerRequest *request)
   response += "\"zones\":[";
   for (int i = 0; i < PIN_COUNT; i++)
   {
+    Serial.print(String(pins[i]) + " ");
     response += "{";
     response += "\"pin\":" + String(pins[i]);
     response += ",\"interval\":" + String(zone_time[i]);
@@ -158,6 +86,7 @@ void GET_INFO(AsyncWebServerRequest *request)
       response += ",";
     }
   }
+  Serial.println();
   response += "]";
   response += "}";
   AsyncWebServerResponse *res = request->beginResponse(200, "text/plain", response);
@@ -220,26 +149,6 @@ void START_ONE(AsyncWebServerRequest *request)
   {
     digitalWrite(pin, HIGH);
   }
-  AsyncWebServerResponse *res = request->beginResponse(200, "text/plain", "No problem, sir \n");
-  res->addHeader("Access-Control-Allow-Origin", "*");
-  request->send(res);
-}
-
-void SET_WIFI_PASSWORD(AsyncWebServerRequest *request)
-{
-  AsyncWebParameter *p1 = request->getParam(0);
-  AsyncWebParameter *p2 = request->getParam(1);
-  AsyncWebParameter *newSsid = p1;
-  AsyncWebParameter *newPassword = p2;
-  if (p1->name() != "ssid")
-  {
-    newSsid = p2;
-    newPassword = p1;
-  }
-
-  ssid = newSsid->value();
-  password = newPassword->value();
-  WRITE_VARIABLES();
   AsyncWebServerResponse *res = request->beginResponse(200, "text/plain", "No problem, sir \n");
   res->addHeader("Access-Control-Allow-Origin", "*");
   request->send(res);
@@ -325,8 +234,19 @@ void START_WATERING(AsyncWebServerRequest *request)
   request->send(res);
 }
 
+void RESET_MEMORY()
+{
+  for (int i = 0; i < 512; i++)
+  {
+    EEPROM.write(i, 0);
+  }
+  EEPROM.commit();
+  delay(500);
+}
+
 void REBOOT(AsyncWebServerRequest *request)
 {
+  RESET_MEMORY();
   ESP.restart();
   request->send(200, "text/plain", "No problem, sir \n");
 }
@@ -337,6 +257,8 @@ void START_SERVER(void)
   Serial.println("SSID: " + String(ssid));
   Serial.println("Password: " + String(password));
   WiFi.mode(WIFI_STA);
+  // WiFi.setHostname("esp32"); // define hostname
+  // WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
   WiFi.begin(ssid.c_str(), password.c_str());
   Serial.println("");
   int i = 0;
@@ -345,15 +267,7 @@ void START_SERVER(void)
     delay(500);
     if (++i > 10)
     {
-      WiFi.softAP(HOSTssid, HOSTpassword);
-      IPAddress IP = WiFi.softAPIP();
-      Serial.println();
-      Serial.println("Started AP");
-      Serial.print(HOSTssid);
-      Serial.print(" ");
-      Serial.println(HOSTpassword);
-      Serial.print("IP address: ");
-      Serial.println(WiFi.softAPIP());
+      ESP.restart();
       break;
     }
     Serial.print(".");
@@ -373,7 +287,6 @@ void START_SERVER(void)
 
   server.on("/api/start_all", HTTP_GET, START_WATERING);
   server.on("/api/start_one", HTTP_GET, START_ONE);
-  server.on("/api/set_password", HTTP_GET, SET_WIFI_PASSWORD);
   server.on("/api/stop", HTTP_GET, STOP_WATERING);
   server.on("/api/set_interval", HTTP_GET, SET_INTERVAL);
   server.on("/api/set_timer", HTTP_GET, SET_TIMER);
@@ -406,14 +319,18 @@ void UPGRADE_BOARD()
 
 void setup(void)
 {
+
   EEPROM.begin(100);
   delay(2000);
+
   Serial.begin(115200);
+
   for (int i = 0; i < PIN_COUNT; i++)
   {
     pinMode(pins[i], OUTPUT);
     digitalWrite(pins[i], HIGH);
   }
+
   if (EEPROM.read(0))
     READ_VARIABLES();
   else
@@ -421,7 +338,6 @@ void setup(void)
 
   START_SERVER();
   UPGRADE_BOARD();
-  Serial.print(EEPROM.length());
 
   timeClient.begin();
   timeClient.setTimeOffset(10800);
@@ -439,7 +355,7 @@ void loop(void)
 {
   ArduinoOTA.handle();
   timeClient.forceUpdate();
-  // Serial.println(""+timeClient.getFormattedTime()+" Timer on: ");
+  Serial.println(timeClient.getFormattedTime());
   if (timeClient.getFormattedTime().indexOf(TIMER) == 0 && TIMER != "" && !active_pin)
   {
     active_pin = pins[0];
