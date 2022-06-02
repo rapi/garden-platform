@@ -14,9 +14,7 @@
 const String ssid = "HUAWEI-aah9";  
 const String password = "4gd19aib"; 
 
-const char *HOSTssid = "GARDEN-AP";
-const char *HOSTpassword = "62636263";
-
+#define RESET_EEPROM false
 
 
 int PIN_COUNT = 16;
@@ -64,7 +62,6 @@ void READ_VARIABLES()
   String Sm = String(m < 10 ? "0" + String(m) : m);
   Serial.println(Sh + ":" + Sm);
   TIMER = Sh + ":" + Sm;
-
 }
 
 void GET_INFO(AsyncWebServerRequest *request)
@@ -254,11 +251,7 @@ void REBOOT(AsyncWebServerRequest *request)
 void START_SERVER(void)
 {
   Serial.println("Trying to connect to");
-  Serial.println("SSID: " + String(ssid));
-  Serial.println("Password: " + String(password));
   WiFi.mode(WIFI_STA);
-  // WiFi.setHostname("esp32"); // define hostname
-  // WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
   WiFi.begin(ssid.c_str(), password.c_str());
   Serial.println("");
   int i = 0;
@@ -268,6 +261,7 @@ void START_SERVER(void)
     if (++i > 10)
     {
       ESP.restart();
+
       break;
     }
     Serial.print(".");
@@ -338,6 +332,7 @@ void setup(void)
 
   START_SERVER();
   UPGRADE_BOARD();
+  Serial.print(EEPROM.length());
 
   timeClient.begin();
   timeClient.setTimeOffset(10800);
